@@ -22,6 +22,7 @@ discog_features <- discography %>%
     review_score = as.numeric(str_extract(Reviews, "(?<=\\()\\d+(?=\%\\))")) # get score, is 0 reviews NA
   ) %>%
   arrange(`Band ID`, year_clean) %>%
+  select(-c("Album Name")) %>%
   group_by("Band ID") %>%
   summarize(
     # counts
@@ -29,6 +30,7 @@ discog_features <- discography %>%
     full_length_ep_count = sum(is_album_ep, na.rm = TRUE),
     singles_count = sum(Type == "Single", na.rm = TRUE),
     demo_count = sum(Type == "Demo", na.rm = TRUE),
+    split_count = sum(Type == "Split", na.rm = TRUE),
     
     # first and last release
     first_release_yr = suppressWarnings(min(year_clean, na.rm = TRUE)),
@@ -45,17 +47,29 @@ discog_features <- discography %>%
     mean_review_score = mean(review_score, na.rm = TRUE),
     .groups = "drop" # same as ungroup()
   ) %>%
-  # handle NAs in years
   mutate(
+    # percentages of releases
+    full_length_ep_perc = full_length_ep_count / total_releases_count,
+    singles_perc = singles_count / total_releases_count,
+    demo_perc = demo_count / total_releases_count,
+    split_perc = split_count / total_releases_count,
+    
+    # handle NAs in years
     first_release_yr = ifelse(is.finite(first_release_yr), first_release_yr, NA),
     last_release_yr = ifelse(is.finite(last_release_yr), last_release_yr, NA),
     avg_score_clean = ifelse(is.na(mean_review_score), NA, mean_review_score)
   )
 
 df <- bands %>%
+  select(-c("URL", "Photo_URL", "Label ID", "Specialization")) %>%
   left_join(discog_features, by = "Band ID") %>%
   mutate(
     # fill NAs for bands with no discography logged of specific count
     total_releases_count = ifelse(is.na(total_releases_count), 0, total_releases_count),
     full_length_ep_count = ifelse(is.na(full_length_ep_count), 0, full_length_ep_count)
   )
+
+
+### Main analysis variable - status == "Split-up" and status == "Active". Active in our Survival analysis is Type 1 right-censored event
+
+

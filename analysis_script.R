@@ -9,4 +9,5 @@ source("src/numeric_coor.R")
 df <- get_data()
 
 ### Main analysis variable - status == "Split-up" and status == "Active". Active in our Survival analysis is Type 1 right-censored event
-results_pearson <- analysis_pearon()
+results_pearson <- analysis_pearon(df)
+

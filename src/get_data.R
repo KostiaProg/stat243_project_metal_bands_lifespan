@@ -3,8 +3,8 @@ library(dplyr)
 source("src/helpers.R")
 
 get_data <- function() {
-  bands <- read_csv("data/complete_roster")
-  discography <- read_csv("data/all_bands_discography")
+  bands <- read_csv("data/complete_roster.csv")
+  discography <- read_csv("data/all_bands_discography.csv")
   
   # add fields and summarizations
   discog_features <- discography %>%
@@ -12,7 +12,7 @@ get_data <- function() {
       Year = as.numeric(Year),
       is_album_ep = Type %in% c("Full-length", "EP"),
       review_count = ifelse(Reviews == "No Reviews", 0, as.numeric(str_extract(Reviews, "^\\d+"))), # get count reviews
-      review_score = as.numeric(str_extract(Reviews, "(?<=\\()\\d+(?=\%\\))")) # get score, is 0 reviews NA
+      review_score = as.numeric(str_extract(Reviews, "(?<=\\()\\d+(?=%\\))")) # get score, is 0 reviews NA
     ) %>%
     arrange(`Band ID`, Year) %>%
     select(-c(`Album Name`)) %>%
@@ -66,7 +66,7 @@ get_data <- function() {
     left_join(discog_features, by = 'Band ID') %>%
     filter(!is.na(total_releases_count)) %>%
     remove_outliers(c("full_length_ep_count", "single_count", "demo_count", "split_count", "total_reviews")) %>% # mb remove total_reviews, need to check
-    mutate(event_split = ifelse(status == "Split-up", 1, 0))
+    mutate(event_split = ifelse(Status_x == "Split-up", 1, 0))
   
   df
 }

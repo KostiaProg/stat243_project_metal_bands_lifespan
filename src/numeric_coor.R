@@ -2,9 +2,9 @@ library(tidyverse)
 library(broom)
 library(pwr)
 
-analyze_var <- function(df, tar_var) {
+analyze_var <- function(df, var_name) {
   sub_data <- df %>%
-    filter(!is.na(.df[[var_name]]), !is.na(event_split)) # filter NAs
+    filter(!is.na(.data[[var_name]]), !is.na(event_split)) # filter NAs
   
   # group sample sizes
   n_active <- sum(sub_data$event_split == 0)
@@ -50,7 +50,7 @@ analyze_var <- function(df, tar_var) {
   )
 }
 
-analysis_pearon <- function(df, target_vars <- c(
+analysis_pearon <- function(df, target_vars = c(
   "mean_release_gap_years",
   "median_release_gap_years",
   "mean_album_ep_release_gap_years",

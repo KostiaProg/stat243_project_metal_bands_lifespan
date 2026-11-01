@@ -12,6 +12,9 @@ analyze_var <- function(df, var_name) {
   
   if (n_active < 2 || n_split < 2) return(NULL)
   
+  # correlation is undefined when all values are the same
+  if (sd(sub_data[[var_name]]) == 0) return(NULL)
+  
   # pearson correlation test
   cor_res <- cor.test(sub_data$event_split, sub_data[[var_name]], method = "pearson")
   r_val <- unname(cor_res$estimate) # direction how value affects splitting-up (0 - no effect, 1 - positive coor, -1 - negative)

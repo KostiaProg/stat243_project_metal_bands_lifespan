@@ -11,3 +11,5 @@ df <- get_data()
 ### Main analysis variable - status == "Split-up" and status == "Active". Active in our Survival analysis is Type 1 right-censored event
 results_pearson <- analysis_pearon(df)
 
+# Pearson heatmap plus power bars (dashed line at power = 0.8)
+source("src/plots.R")

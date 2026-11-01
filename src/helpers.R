@@ -22,6 +22,10 @@ remove_outliers <- function(df, cols, na.rm = TRUE, keep_na = FALSE) {
     third <- quantile(col_vec, 0.75, na.rm = na.rm)
     iqr   <- third - first
     
+    # if most values are equal (e.g. all zeros), IQR = 0 and the rule would delete
+    # every non-zero value, so we skip filtering this column
+    if (iqr == 0) next
+    
     lower <- first - 1.5 * iqr
     upper <- third + 1.5 * iqr
     

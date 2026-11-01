@@ -59,10 +59,10 @@ get_data <- function() {
       split_perc = split_count / total_releases_count
     )
   
-  # combine and filter
+  # combine and filter, plus dropping label columns, keeping one row per band
   df <- bands %>%
-    select(-c("Name_x", "URL", "Photo_URL", `Label ID`, "Specialization")) %>%
-    rename("Label" = "Name_y") %>%
+    select(-any_of(c("Name_x", "URL", "Photo_URL", "Label ID", "Specialization", "Name_y", "Status_y"))) %>%
+    distinct(`Band ID`, .keep_all = TRUE) %>%
     left_join(discog_features, by = 'Band ID') %>%
     filter(!is.na(total_releases_count)) %>%
     remove_outliers(c("full_length_ep_count", "single_count", "demo_count", "split_count", "total_reviews")) %>% # mb remove total_reviews, need to check

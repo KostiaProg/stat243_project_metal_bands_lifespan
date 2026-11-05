@@ -4,10 +4,11 @@ library(dplyr)
 
 source("src/get_data.R")
 source("src/numeric_coor.R")
+source("src/lifespan_bands_graphs.R")
 
 # get data
 df <- get_data()
 
 ### Main analysis variable - status == "Split-up" and status == "Active". Active in our Survival analysis is Type 1 right-censored event
 results_pearson <- analysis_pearon(df)
-
+lifespan_bands_graphs(df)

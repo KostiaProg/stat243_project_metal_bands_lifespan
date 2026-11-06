@@ -1,155 +1,163 @@
 library(tidyverse)
 
-setwd(" ")
+setwd("C:/Users/Pochtarusa/Downloads/archive (5)")
 
-# Load datasets
+# Research question:
+# Does band status distribution vary across metal genres?
+
+# ------------------------------------------------------------
+# Data
+# ------------------------------------------------------------
+
 bands <- read_csv("metal_bands.csv", show_col_types = FALSE)
-labels <- read_csv("labels_roster.csv", show_col_types = FALSE)
 
-# Remove duplicate band-label combinations
-labels <- labels %>%
-  distinct(`Band ID`, `Label ID`, .keep_all = TRUE)
+# Split a combined genre into separate genres:
+# "Black/Death Metal" -> "Black Metal", "Death Metal"
+noun_re <- "(Metal|Rock|core|grind|Punk|Crust|Noise|Ambient|Crossover|NWOBHM|Other)$"
 
-# Join label and band information
-df <- labels %>%
-  select(
-    `Band ID`, `Label ID`,
-    Label_Name = Name
-  ) %>%
-  inner_join(
-    bands %>%
-      select(
-        `Band ID`, Genre,
-        Band_Status = Status
-      ) %>%
-      distinct(`Band ID`, .keep_all = TRUE),
-    by = "Band ID"
-  ) %>%
-  filter(!is.na(Genre), !is.na(Band_Status))
-
-# Group rare categories to reduce table size
-group_rare <- function(x, min_count = 30) {
-  x <- as.character(x)
-  counts <- table(x)
-  rare <- names(counts[counts < min_count])
-  x[!is.na(x) & x %in% rare] <- "Other"
-  factor(x)
+split_genre <- function(s) {
+  p <- trimws(unlist(strsplit(s, "[/,]")))
+  p <- p[p != ""]
+  if (length(p) > 1) {
+    for (i in (length(p) - 1):1) {
+      if (!grepl(noun_re, p[i], ignore.case = TRUE)) {
+        w <- strsplit(p[i + 1], " ")[[1]]
+        p[i] <- paste(p[i], if (length(w) > 1) paste(w[-1], collapse = " ") else "Metal")
+      }
+    }
+  }
+  p
 }
 
-df <- df %>%
+top_n_genres <- 15
+
+# One row per band; primary genre = first genre in the band's description
+genre_df <- bands %>%
+  distinct() %>%
+  filter(!is.na(Genre), !is.na(Status), Status != "Disputed") %>%
   mutate(
-    Label_Name_group = group_rare(Label_Name),
-    Genre_group = group_rare(Genre)
+    Primary_Genre = map_chr(Genre, ~ split_genre(.x)[1]),
+    Genre_group = fct_lump_n(Primary_Genre, n = top_n_genres, other_level = "Other genres"),
+    Band_Status = factor(Status,
+                         levels = c("Active", "On hold", "Changed name", "Unknown", "Split-up"))
   )
 
-# Test association between two categorical variables
-test_table <- function(data, var1, var2, B = 999) {
+# ------------------------------------------------------------
+# Test: genre and band status (chi-square test of independence)
+# ------------------------------------------------------------
 
-  data <- data %>%
-    filter(!is.na(.data[[var1]]), !is.na(.data[[var2]]))
+tab <- table(genre_df$Genre_group, genre_df$Band_Status)
 
-  tab <- table(data[[var1]], data[[var2]])
-
-  if (nrow(tab) < 2 || ncol(tab) < 2) {
-    return(tibble(
-      variable_1 = var1,
-      variable_2 = var2,
-      n = sum(tab),
-      method = NA_character_,
-      p_value = NA_real_,
-      cramers_v = NA_real_
-    ))
-  }
-
-  # Calculate expected counts
-  chi <- suppressWarnings(chisq.test(tab, correct = FALSE))
-  expected <- chi$expected
-
-  # Select the appropriate statistical test
-  if (all(dim(tab) == c(2, 2)) && any(expected < 5)) {
-    test <- fisher.test(tab)
-    method <- "Fisher's exact test"
-  } else if (any(expected < 1) || mean(expected < 5) > 0.20) {
-    test <- chisq.test(tab, simulate.p.value = TRUE, B = B)
-    method <- "Chi-square (Monte Carlo)"
-  } else {
-    test <- chi
-    method <- "Chi-square"
-  }
-
-  # Calculate Cramer's V
-  n <- sum(tab)
-  v <- sqrt(
-    as.numeric(chi$statistic) /
-      (n * min(nrow(tab) - 1, ncol(tab) - 1))
-  )
-
-  tibble(
-    variable_1 = var1,
-    variable_2 = var2,
-    n = n,
-    method = method,
-    p_value = test$p.value,
-    cramers_v = v
-  )
+chi <- chisq.test(tab, correct = FALSE)
+method <- "Chi-square"
+if (any(chi$expected < 5)) {
+  chi <- chisq.test(tab, simulate.p.value = TRUE, B = 9999)
+  method <- "Chi-square (Monte Carlo)"
 }
 
+n <- sum(tab)
+cramers_v <- sqrt(as.numeric(chi$statistic) / (n * min(nrow(tab) - 1, ncol(tab) - 1)))
 
-# Test 1: label name and band status
-test_label_band_status <- test_table(
-  df, "Label_Name_group", "Band_Status"
+results <- tibble(
+  variable_1 = "Genre_group",
+  variable_2 = "Band_Status",
+  n = n,
+  method = method,
+  chi_sq = as.numeric(chi$statistic),
+  df = as.numeric(chi$parameter),
+  p_value = chi$p.value,
+  cramers_v = cramers_v,
+  conclusion = case_when(
+    p_value >= 0.05   ~ "No statistically significant association",
+    cramers_v < 0.10  ~ "Very weak association",
+    cramers_v < 0.30  ~ "Weak association",
+    cramers_v < 0.50  ~ "Moderate association",
+    TRUE              ~ "Strong association"
+  )
 )
 
-# Test 2: band genre and band status
-test_genre_status <- test_table(
-  df, "Genre_group", "Band_Status"
-)
-
-# Combine results and adjust p-values
-results <- bind_rows(
-  test_label_band_status,
-  test_genre_status
-) %>%
-  mutate(p_adjusted = p.adjust(p_value, method = "BH"))
-
-
-# Display and save results of tests 1-2
 print(results)
-write_csv(results, "labels_test_results.csv")
 
-# Save contingency tables for tests 1-2
-write.csv(
-  as.data.frame.matrix(
-    table(df$Label_Name_group, df$Band_Status)
-  ),
-  "label_name_band_status.csv"
+cat("\nVariables: Genre_group and Band_Status\n")
+cat("Method:", results$method, "\n")
+cat("Chi-square:", round(results$chi_sq, 1), "with df =", results$df, "\n")
+cat("P-value:", format.pval(results$p_value, digits = 3, eps = 1e-16), "\n")
+cat("Cramer's V:", round(results$cramers_v, 3), "\n")
+cat("Conclusion:", results$conclusion, "\n")
+cat(
+  "Interpretation: the association between genre and band status is",
+  ifelse(results$p_value < 0.05, "statistically significant", "not statistically significant"),
+  "(alpha = 0.05); strength:", tolower(results$conclusion), "(Cramer's V =",
+  round(results$cramers_v, 2), ").\n",
+  "The very small p-value is mostly driven by the large sample size (n =",
+  format(results$n, big.mark = ","), "bands).\n"
 )
 
-write.csv(
-  as.data.frame.matrix(
-    table(df$Genre_group, df$Band_Status)
-  ),
-  "genre_band_status.csv"
-)
+write_csv(results, "genre_test_results.csv")
+write.csv(as.data.frame.matrix(tab), "genre_band_status_table.csv")
 
+# ------------------------------------------------------------
+# Graph: 100% stacked bars, genres sorted by share of active bands
+# ------------------------------------------------------------
 
-# Print interpretation of the test results
-interpret_results <- results %>%
+genre_distribution <- genre_df %>%
+  count(Genre_group, Band_Status) %>%
+  group_by(Genre_group) %>%
   mutate(
-    conclusion = case_when(
-      p_adjusted >= 0.05 ~ "No statistically significant association",
-      cramers_v < 0.10 ~ "Very weak association",
-      cramers_v < 0.30 ~ "Weak association",
-      cramers_v < 0.50 ~ "Moderate association",
-      TRUE ~ "Strong association"
-    )
+    total = sum(n),
+    percentage = n / total * 100,
+    active_share = sum(n[Band_Status == "Active"]) / total
+  ) %>%
+  ungroup() %>%
+  mutate(
+    label = fct_reorder(Genre_group, active_share)
   )
 
-for (i in seq_len(nrow(interpret_results))) {
-  cat("\nVariables:", interpret_results$variable_1[i],
-      "and", interpret_results$variable_2[i], "\n")
-  cat("P-value:", interpret_results$p_value[i], "\n")
-  cat("Adjusted p-value:", interpret_results$p_adjusted[i], "\n")
-  cat("Cramer's V:", round(interpret_results$cramers_v[i], 3), "\n")
-  cat("Conclusion:", interpret_results$conclusion[i], "\n")
-}
+overall_active <- mean(genre_df$Band_Status == "Active") * 100
+
+p_text <- if (results$p_value < 0.001) "p < 0.001" else sprintf("p = %.3f", results$p_value)
+subtitle_text <- sprintf(
+  "\u03c7\u00b2(%d) = %.0f, %s, Cram\u00e9r's V = %.2f\nDashed line = share of active bands overall (%.0f%%)",
+  results$df, results$chi_sq, p_text, results$cramers_v, overall_active
+)
+
+genre_plot <- ggplot(
+  genre_distribution,
+  aes(x = percentage, y = label, fill = Band_Status)
+) +
+  geom_col(width = 0.75, position = position_stack(reverse = TRUE)) +
+  geom_vline(xintercept = overall_active, linetype = "dashed", linewidth = 0.6) +
+  scale_x_continuous(
+    labels = scales::percent_format(scale = 1),
+    expand = c(0, 0)
+  ) +
+  scale_fill_manual(
+    values = c(
+      "Active"       = "#20C997",
+      "On hold"      = "#FFB547",
+      "Changed name" = "#B197FC",
+      "Unknown"      = "#739BFF",
+      "Split-up"     = "#F06A6A"
+    )
+  ) +
+  labs(
+    title = "Does Band Status Distribution Vary Across Metal Genres?",
+    subtitle = subtitle_text,
+    x = NULL,
+    y = NULL,
+    fill = "Band status"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(face = "bold", size = 11, hjust = 0.5),
+    plot.subtitle = element_text(size = 9, hjust = 0.5),
+    axis.text.y = element_text(size = 10),
+    panel.grid = element_blank(),
+    legend.position = "bottom",
+    legend.title = element_text(size = 9),
+    legend.text = element_text(size = 8),
+    legend.key.size = unit(0.4, "cm")
+  )
+
+print(genre_plot)
+ggsave("genre_band_status_plot.png", genre_plot, width = 12, height = 7, dpi = 300, bg = "white")

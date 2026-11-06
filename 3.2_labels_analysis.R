@@ -100,15 +100,6 @@ test_table <- function(data, var1, var2, B = 999) {
   )
 }
 
-# Test 1: label specialization and band genre
-test_specialization_genre <- test_table(
-  df, "Specialization_group", "Genre_group"
-)
-
-# Test 2: label country and band country
-test_label_country <- test_table(
-  df, "Label_Country_group", "Band_Country_group"
-)
 
 # Test 3: label status and band status
 test_label_band_status <- test_table(

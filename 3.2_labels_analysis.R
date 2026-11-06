@@ -42,9 +42,6 @@ group_rare <- function(x, min_count = 30) {
 
 df <- df %>%
   mutate(
-    Specialization_group = group_rare(Specialization),
-    Label_Country_group = group_rare(Label_Country),
-    Band_Country_group = group_rare(Band_Country),
     Genre_group = group_rare(Genre)
   )
 

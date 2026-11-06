@@ -153,18 +153,7 @@ write.csv(
   "genre_band_status.csv"
 )
 
-# Test 5: label status and band status separately by genre
-stratified_results <- df %>%
-  group_by(Genre_group) %>%
-  group_modify(
-    ~ test_table(.x, "Label_Status", "Band_Status", B = 199)
-  ) %>%
-  ungroup() %>%
-  mutate(p_adjusted = p.adjust(p_value, method = "BH"))
 
-# Display and save results of test 5
-print(stratified_results)
-write_csv(stratified_results, "labels_status_by_genre.csv")
 
 
 # Print interpretation of the test results

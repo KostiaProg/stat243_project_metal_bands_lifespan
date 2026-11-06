@@ -98,12 +98,12 @@ test_table <- function(data, var1, var2, B = 999) {
 }
 
 
-# Test 3: label status and band status
+# Test 1: label status and band status
 test_label_band_status <- test_table(
   df, "Label_Status", "Band_Status"
 )
 
-# Test 4: band genre and band status
+# Test 2: band genre and band status
 test_genre_status <- test_table(
   df, "Genre_group", "Band_Status"
 )
@@ -116,11 +116,11 @@ results <- bind_rows(
   mutate(p_adjusted = p.adjust(p_value, method = "BH"))
 
 
-# Display and save results of tests 1-4
+# Display and save results of tests 1-2
 print(results)
 write_csv(results, "labels_test_results.csv")
 
-# Save contingency tables for tests 1-4
+# Save contingency tables for tests 1-2
 write.csv(
   as.data.frame.matrix(
     table(df$Label_Country_group, df$Band_Country_group)

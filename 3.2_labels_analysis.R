@@ -123,9 +123,9 @@ write_csv(results, "labels_test_results.csv")
 # Save contingency tables for tests 1-4
 write.csv(
   as.data.frame.matrix(
-    table(df$Specialization_group, df$Genre_group)
+    table(df$Label_Country_group, df$Band_Country_group)
   ),
-  "labels_specialization_genre.csv"
+  "labels_country_comparison.csv"
 )
 
 write.csv(

@@ -110,12 +110,11 @@ test_genre_status <- test_table(
 
 # Combine results and adjust p-values
 results <- bind_rows(
-  test_specialization_genre,
-  test_label_country,
   test_label_band_status,
   test_genre_status
 ) %>%
   mutate(p_adjusted = p.adjust(p_value, method = "BH"))
+
 
 # Display and save results of tests 1-4
 print(results)

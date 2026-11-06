@@ -6,14 +6,11 @@ library(rlang)
 
 if (!dir.exists("graphs")) dir.create("graphs", recursive = TRUE)
 
-# 1. Clean data, lump high-cardinality facets to Top N, and calculate aligned summary stats
 prepare_plot_data <- function(df, years_col, cols, top_n_facets = 12) {
-  # Verify columns exist
   req_cols <- c(years_col, cols)
   missing_cols <- setdiff(req_cols, colnames(df))
   if (length(missing_cols) > 0) return(NULL)
   
-  # Clean rows
   df_clean <- df %>%
     filter(is.finite(.data[[years_col]]))
   
@@ -21,7 +18,6 @@ prepare_plot_data <- function(df, years_col, cols, top_n_facets = 12) {
     df_clean <- df_clean %>%
       filter(if_all(all_of(cols), ~ !is.na(.x) & as.character(.x) != ""))
     
-    # CRITICAL: Lump high-cardinality columns (e.g. 500+ Genres) down to Top N
     for (col_name in cols) {
       if (n_distinct(df_clean[[col_name]]) > top_n_facets) {
         df_clean[[col_name]] <- fct_lump_n(
@@ -35,14 +31,13 @@ prepare_plot_data <- function(df, years_col, cols, top_n_facets = 12) {
   
   if (nrow(df_clean) == 0) return(NULL)
   
-  # Calculate summary stats from the exact same df_clean
   summary_df <- df_clean %>%
     group_by(across(all_of(cols))) %>%
     summarise(
-      mean_val   = mean(.data[[years_col]], na.rm = TRUE),
+      mean_val = mean(.data[[years_col]], na.rm = TRUE),
       median_val = median(.data[[years_col]], na.rm = TRUE),
-      max_val    = max(.data[[years_col]], na.rm = TRUE),
-      .groups    = "drop"
+      max_val= max(.data[[years_col]], na.rm = TRUE),
+      .groups = "drop"
     ) %>%
     mutate(
       label_text = paste0("Mean: ", round(mean_val, 1), "\nMed: ", round(median_val, 1))
@@ -51,16 +46,14 @@ prepare_plot_data <- function(df, years_col, cols, top_n_facets = 12) {
   list(df_clean = df_clean, summary_df = summary_df)
 }
 
-# 2. Fast Pre-Aggregated Distribution Bar Chart Function
 create_lifespan_chart_graphs <- function(df, years_col = "years_lived", group_cols = c(), top_n_facets = 12) {
   build_chart <- function(cols) {
     prep <- prepare_plot_data(df, years_col, cols, top_n_facets = top_n_facets)
     if (is.null(prep)) return(NULL)
     
-    df_clean   <- prep$df_clean
+    df_clean <- prep$df_clean
     summary_df <- prep$summary_df
     
-    # Pre-aggregate row counts so ggplot renders in under 1 second
     df_counts <- df_clean %>%
       count(across(all_of(c(years_col, cols))), name = "n_count")
     
@@ -117,13 +110,12 @@ create_lifespan_chart_graphs <- function(df, years_col = "years_lived", group_co
   }
 }
 
-# 3. Lifespan Boxplot Generator
 create_lifespan_box <- function(df, years_col = "years_lived", group_cols = c(), top_n_facets = 12) {
   build_boxplot <- function(cols) {
     prep <- prepare_plot_data(df, years_col, cols, top_n_facets = top_n_facets)
     if (is.null(prep)) return(NULL)
     
-    df_clean   <- prep$df_clean
+    df_clean <- prep$df_clean
     summary_df <- prep$summary_df
     
     if (length(cols) == 0) {
@@ -202,7 +194,6 @@ create_group_mean_median_bars <- function(df, years_col = "years_lived", group_c
   for (col in group_cols) {
     if (!col %in% colnames(df)) next
     
-    # 1. Clean data and select Top N categories by frequency
     df_clean <- df %>%
       filter(is.finite(.data[[years_col]])) %>%
       filter(!is.na(.data[[col]]) & as.character(.data[[col]]) != "")
@@ -214,12 +205,11 @@ create_group_mean_median_bars <- function(df, years_col = "years_lived", group_c
     
     if (length(top_categories) == 0) next
     
-    # 2. Compute Mean & Median and pivot to long format for side-by-side dodging
     summary_df <- df_clean %>%
       filter(.data[[col]] %in% top_categories) %>%
       group_by(across(all_of(col))) %>%
       summarise(
-        Mean   = mean(.data[[years_col]], na.rm = TRUE),
+        Mean = mean(.data[[years_col]], na.rm = TRUE),
         Median = median(.data[[years_col]], na.rm = TRUE),
         .groups = "drop"
       ) %>%
@@ -229,10 +219,8 @@ create_group_mean_median_bars <- function(df, years_col = "years_lived", group_c
         values_to = "Value"
       )
     
-    # Preserve order of top categories on X-axis
     summary_df[[col]] <- factor(summary_df[[col]], levels = top_categories)
     
-    # 3. Dodged bar chart (paired Mean & Median bars)
     ch <- ggplot(summary_df, aes(x = .data[[col]], y = Value, fill = Statistic)) +
       geom_col(position = position_dodge(width = 0.8), width = 0.7, color = "black") +
       geom_text(
@@ -262,7 +250,6 @@ create_group_mean_median_bars <- function(df, years_col = "years_lived", group_c
   }
 }
 
-# 4. Main Master Function
 lifespan_bands_graphs <- function(
     df,
     years_col = "years_lived",
@@ -271,11 +258,9 @@ lifespan_bands_graphs <- function(
     boxplots_cols_orig = c("total_releases_count", "full_length_ep_count", "single_count"),
     top_n_facets = 12
 ) {
-  # 1. Bar charts with facet lumping
   create_lifespan_chart_graphs(df, years_col, graphs_chart_cols, top_n_facets = top_n_facets)
   create_group_mean_median_bars(df, years_col, group_bars_cols, top_n = 12)
   
-  # 2. Bin numerical variables
   box_levels <- c("0", "1-3", "4-6", "7-9", "10-12", "13-15", "15+")
   
   df_binned <- df %>%
@@ -284,14 +269,14 @@ lifespan_bands_graphs <- function(
         all_of(intersect(boxplots_cols_orig, colnames(df))),
         ~ factor(
           case_when(
-            .x >= 1  & .x <= 3  ~ "1-3",
-            .x >= 4  & .x <= 6  ~ "4-6",
-            .x >= 7  & .x <= 9  ~ "7-9",
+            .x >= 1 & .x <= 3 ~ "1-3",
+            .x >= 4 & .x <= 6 ~ "4-6",
+            .x >= 7 & .x <= 9 ~ "7-9",
             .x >= 10 & .x <= 12 ~ "10-12",
             .x >= 13 & .x <= 15 ~ "13-15",
-            .x == 0             ~ "0",
-            .x > 15             ~ "15+",
-            TRUE                ~ NA_character_
+            .x == 0 ~ "0",
+            .x > 15 ~ "15+",
+            TRUE ~ NA_character_
           ),
           levels = box_levels
         ),
@@ -299,7 +284,6 @@ lifespan_bands_graphs <- function(
       )
     )
   
-  # 3. Boxplots
   boxplots_cols <- paste0(intersect(boxplots_cols_orig, colnames(df)), "_boxes")
   
   for (col in boxplots_cols) {

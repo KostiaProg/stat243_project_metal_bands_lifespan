@@ -1,4 +1,3 @@
-
 library(tidyverse)
 
 setwd(" ")
@@ -15,15 +14,12 @@ labels <- labels %>%
 df <- labels %>%
   select(
     `Band ID`, `Label ID`,
-    Specialization,
-    Label_Status = Status,
-    Label_Country = Country
+    Label_Name = Name
   ) %>%
   inner_join(
     bands %>%
       select(
         `Band ID`, Genre,
-        Band_Country = Country,
         Band_Status = Status
       ) %>%
       distinct(`Band ID`, .keep_all = TRUE),
@@ -42,17 +38,18 @@ group_rare <- function(x, min_count = 30) {
 
 df <- df %>%
   mutate(
+    Label_Name_group = group_rare(Label_Name),
     Genre_group = group_rare(Genre)
   )
 
 # Test association between two categorical variables
 test_table <- function(data, var1, var2, B = 999) {
-  
+
   data <- data %>%
     filter(!is.na(.data[[var1]]), !is.na(.data[[var2]]))
-  
+
   tab <- table(data[[var1]], data[[var2]])
-  
+
   if (nrow(tab) < 2 || ncol(tab) < 2) {
     return(tibble(
       variable_1 = var1,
@@ -63,11 +60,11 @@ test_table <- function(data, var1, var2, B = 999) {
       cramers_v = NA_real_
     ))
   }
-  
+
   # Calculate expected counts
   chi <- suppressWarnings(chisq.test(tab, correct = FALSE))
   expected <- chi$expected
-  
+
   # Select the appropriate statistical test
   if (all(dim(tab) == c(2, 2)) && any(expected < 5)) {
     test <- fisher.test(tab)
@@ -79,14 +76,14 @@ test_table <- function(data, var1, var2, B = 999) {
     test <- chi
     method <- "Chi-square"
   }
-  
+
   # Calculate Cramer's V
   n <- sum(tab)
   v <- sqrt(
     as.numeric(chi$statistic) /
       (n * min(nrow(tab) - 1, ncol(tab) - 1))
   )
-  
+
   tibble(
     variable_1 = var1,
     variable_2 = var2,
@@ -98,9 +95,9 @@ test_table <- function(data, var1, var2, B = 999) {
 }
 
 
-# Test 1: label status and band status
+# Test 1: label name and band status
 test_label_band_status <- test_table(
-  df, "Label_Status", "Band_Status"
+  df, "Label_Name_group", "Band_Status"
 )
 
 # Test 2: band genre and band status
@@ -123,23 +120,9 @@ write_csv(results, "labels_test_results.csv")
 # Save contingency tables for tests 1-2
 write.csv(
   as.data.frame.matrix(
-    table(df$Label_Country_group, df$Band_Country_group)
+    table(df$Label_Name_group, df$Band_Status)
   ),
-  "labels_country_comparison.csv"
-)
-
-write.csv(
-  as.data.frame.matrix(
-    table(df$Label_Country_group, df$Band_Country_group)
-  ),
-  "labels_country_comparison.csv"
-)
-
-write.csv(
-  as.data.frame.matrix(
-    table(df$Label_Status, df$Band_Status)
-  ),
-  "labels_status_comparison.csv"
+  "label_name_band_status.csv"
 )
 
 write.csv(
@@ -148,8 +131,6 @@ write.csv(
   ),
   "genre_band_status.csv"
 )
-
-
 
 
 # Print interpretation of the test results

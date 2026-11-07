@@ -1,18 +1,18 @@
+
 library(tidyverse)
 
 setwd("C:/Users/Pochtarusa/Downloads/archive (5)")
 
-
-
 bands <- read_csv("metal_bands.csv", show_col_types = FALSE)
 
-# Split a combined genre into separate genres:
-# "Black/Death Metal" -> "Black Metal", "Death Metal"
+
+
 noun_re <- "(Metal|Rock|core|grind|Punk|Crust|Noise|Ambient|Crossover|NWOBHM|Other)$"
 
 split_genre <- function(s) {
   p <- trimws(unlist(strsplit(s, "[/,]")))
   p <- p[p != ""]
+
   if (length(p) > 1) {
     for (i in (length(p) - 1):1) {
       if (!grepl(noun_re, p[i], ignore.case = TRUE)) {
@@ -21,12 +21,12 @@ split_genre <- function(s) {
       }
     }
   }
+
   p
 }
 
 top_n_genres <- 15
 
-# One row per band; primary genre = first genre in the band's description
 genre_df <- bands %>%
   distinct() %>%
   filter(!is.na(Genre), !is.na(Status), Status != "Disputed") %>%
@@ -39,62 +39,39 @@ genre_df <- bands %>%
 
 
                       
-# We are testing assosiation between rwo variables: genre and band status by using chi-square test of independence
 
+# Chi-square test of independence
 
 tab <- table(genre_df$Genre_group, genre_df$Band_Status)
 
-chi <- chisq.test(tab, correct = FALSE)
-method <- "Chi-square"
+chi <- chisq.test(tab)
+
 if (any(chi$expected < 5)) {
   chi <- chisq.test(tab, simulate.p.value = TRUE, B = 9999)
-  method <- "Chi-square (Monte Carlo)"
 }
 
+# Cramer's V
 n <- sum(tab)
-cramers_v <- sqrt(as.numeric(chi$statistic) / (n * min(nrow(tab) - 1, ncol(tab) - 1)))
+cramers_v <- sqrt(chi$statistic / (n * min(dim(tab) - 1)))
 
-results <- tibble(
-  variable_1 = "Genre_group",
-  variable_2 = "Band_Status",
-  n = n,
-  method = method,
-  chi_sq = as.numeric(chi$statistic),
-  df = as.numeric(chi$parameter),
-  p_value = chi$p.value,
-  cramers_v = cramers_v,
-  conclusion = case_when(
-    p_value >= 0.05   ~ "No statistically significant association",
-    cramers_v < 0.10  ~ "Very weak association",
-    cramers_v < 0.30  ~ "Weak association",
-    cramers_v < 0.50  ~ "Moderate association",
-    TRUE              ~ "Strong association"
-  )
-)
+# Results
+cat("Chi-square:", round(chi$statistic, 2), "\n")
+cat("Degrees of freedom:", chi$parameter, "\n")
+cat("P-value:", format.pval(chi$p.value, digits = 3), "\n")
+cat("Cramer's V:", round(cramers_v, 3), "\n")
 
-print(results)
-
-cat("\nVariables: Genre_group and Band_Status\n")
-cat("Method:", results$method, "\n")
-cat("Chi-square:", round(results$chi_sq, 1), "with df =", results$df, "\n")
-cat("P-value:", format.pval(results$p_value, digits = 3, eps = 1e-16), "\n")
-cat("Cramer's V:", round(results$cramers_v, 3), "\n")
-cat("Conclusion:", results$conclusion, "\n")
 cat(
-  "Interpretation: the association between genre and band status is",
-  ifelse(results$p_value < 0.05, "statistically significant", "not statistically significant"),
-  "(alpha = 0.05); strength:", tolower(results$conclusion), "(Cramer's V =",
-  round(results$cramers_v, 2), ").\n",
-  "The very small p-value is mostly driven by the large sample size (n =",
-  format(results$n, big.mark = ","), "bands).\n"
+  "Conclusion:",
+  if (chi$p.value < 0.05) {
+    "There is a statistically significant association between genre and band status."
+  } else {
+    "There is no statistically significant association between genre and band status."
+  },
+  "\n"
 )
-
-write_csv(results, "genre_test_results.csv")
-write.csv(as.data.frame.matrix(tab), "genre_band_status_table.csv")
 
 
 # Graph
-
 
 genre_distribution <- genre_df %>%
   count(Genre_group, Band_Status) %>%
@@ -111,10 +88,15 @@ genre_distribution <- genre_df %>%
 
 overall_active <- mean(genre_df$Band_Status == "Active") * 100
 
-p_text <- if (results$p_value < 0.001) "p < 0.001" else sprintf("p = %.3f", results$p_value)
+p_text <- if (chi$p.value < 0.001) {
+  "p < 0.001"
+} else {
+  sprintf("p = %.3f", chi$p.value)
+}
+
 subtitle_text <- sprintf(
   "\u03c7\u00b2(%d) = %.0f, %s, Cram\u00e9r's V = %.2f\nDashed line = share of active bands overall (%.0f%%)",
-  results$df, results$chi_sq, p_text, results$cramers_v, overall_active
+  chi$parameter, chi$statistic, p_text, cramers_v, overall_active
 )
 
 genre_plot <- ggplot(
@@ -156,4 +138,17 @@ genre_plot <- ggplot(
   )
 
 print(genre_plot)
-ggsave("genre_band_status_plot.png", genre_plot, width = 12, height = 7, dpi = 300, bg = "white")
+
+ggsave(
+  "genre_band_status_plot.png",
+  genre_plot,
+  width = 12,
+  height = 7,
+  dpi = 300,
+  bg = "white"
+)
+
+
+# Export results
+
+write.csv(as.data.frame.matrix(tab), "genre_band_status_table.csv")

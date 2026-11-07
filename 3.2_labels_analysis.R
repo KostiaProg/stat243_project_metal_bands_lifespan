@@ -149,6 +149,3 @@ ggsave(
 )
 
 
-# Export results
-
-write.csv(as.data.frame.matrix(tab), "genre_band_status_table.csv")

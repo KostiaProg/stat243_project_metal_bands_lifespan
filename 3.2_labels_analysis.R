@@ -2,12 +2,7 @@ library(tidyverse)
 
 setwd("C:/Users/Pochtarusa/Downloads/archive (5)")
 
-# Research question:
-# Does band status distribution vary across metal genres?
 
-# ------------------------------------------------------------
-# Data
-# ------------------------------------------------------------
 
 bands <- read_csv("metal_bands.csv", show_col_types = FALSE)
 
@@ -42,9 +37,10 @@ genre_df <- bands %>%
                          levels = c("Active", "On hold", "Changed name", "Unknown", "Split-up"))
   )
 
-# ------------------------------------------------------------
-# Test: genre and band status (chi-square test of independence)
-# ------------------------------------------------------------
+
+                      
+# We are testing assosiation between rwo variables: genre and band status by using chi-square test of independence
+
 
 tab <- table(genre_df$Genre_group, genre_df$Band_Status)
 
@@ -96,9 +92,9 @@ cat(
 write_csv(results, "genre_test_results.csv")
 write.csv(as.data.frame.matrix(tab), "genre_band_status_table.csv")
 
-# ------------------------------------------------------------
-# Graph: 100% stacked bars, genres sorted by share of active bands
-# ------------------------------------------------------------
+
+# Graph
+
 
 genre_distribution <- genre_df %>%
   count(Genre_group, Band_Status) %>%
